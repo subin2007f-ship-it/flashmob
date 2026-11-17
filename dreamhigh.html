@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>드림하이 플래시몹 연습</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Black+Han+Sans&display=swap">
+<style>
+  /* 무대: 위에 영상, 아래에 구간 카드와 조작 버튼 */
+  :root {
+    --bg: #f3f1f8; --panel: #ffffff; --fg: #1d1a2b; --muted: #6a6480;
+    --accent: #6b3fd6; --accent-2: #ff8a3d; --line: #dcd6ea;
+    --display: "Black Han Sans", "Malgun Gothic", sans-serif;
+    --body: "Gowun Dodum", "Malgun Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15121f; --panel: #211c30; --fg: #f1eefa; --muted: #a59fbd;
+            --accent: #a17dff; --accent-2: #ffa25f; --line: #3a3350; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 16px; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(26px, 4vw, 38px); margin: 0; letter-spacing: .01em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin: 4px 0 0; }
+  .stage { position: relative; aspect-ratio: 16/9; width: 100%; background: #000; border-radius: 14px; overflow: hidden; }
+  .stage > div, .stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .now { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill { background: var(--accent); color: #fff; padding: 4px 12px; border-radius: 999px; font-size: 14px; }
+  .time { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; display: flex; }
+  .bar i { display: block; height: 100%; }
+  .bar .seg1 { background: var(--accent); }
+  .bar .seg2 { background: var(--accent-2); }
+  .segs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .segs { grid-template-columns: 1fr; } }
+  .seg { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 14px 16px;
+         text-align: left; font: inherit; color: inherit; cursor: pointer; display: grid; gap: 4px; }
+  .seg b { font-family: var(--display); font-weight: 400; font-size: 20px; }
+  .seg small { color: var(--muted); }
+  .seg.active[data-i="0"] { border-color: var(--accent); }
+  .seg.active[data-i="1"] { border-color: var(--accent-2); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .controls .label { color: var(--muted); font-size: 14px; margin-right: 2px; }
+  button.btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+               padding: 8px 14px; border-radius: 10px; cursor: pointer; }
+  button.btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.big { font-size: 18px; padding: 10px 20px; background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; }
+  .gap { flex: 1; }
+  .note { color: var(--muted); font-size: 13px; }
+
+  /* 응원 배경 */
+  body { background: radial-gradient(circle at 15% 20%, #ffe3f0 0, transparent 35%),
+                     radial-gradient(circle at 85% 30%, #e3f1ff 0, transparent 35%),
+                     radial-gradient(circle at 50% 100%, #fff3c9 0, transparent 40%), var(--bg);
+         background-attachment: fixed; min-height: 100vh; }
+  @media (prefers-color-scheme: dark) {
+    body { background: radial-gradient(circle at 15% 20%, #3a2140 0, transparent 35%),
+                       radial-gradient(circle at 85% 30%, #1f2c45 0, transparent 35%), var(--bg); }
+  }
+  body.photo { background: var(--photo) center / cover fixed no-repeat, var(--bg); }
+  body.photo .cheer { display: none; }
+  .wrap { position: relative; z-index: 1; }
+  .wrap > .stage, .wrap > .segs, .wrap > .controls, .wrap > .now, .wrap > header {
+    background-clip: padding-box; }
+  .panelbox { background: color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter: blur(6px);
+              border-radius: 16px; padding: 14px 16px; display: grid; gap: 12px; }
+  .cheer { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .buddy { position: absolute; width: 150px; display: grid; justify-items: center; }
+  .buddy svg { width: 100%; height: auto; animation: hop 1.1s ease-in-out infinite; transform-origin: 50% 100%; }
+  .buddy .bubble { font-family: var(--display); font-size: 18px; background: #fff; color: #3b2a55;
+                   padding: 4px 12px; border-radius: 14px; border: 2px solid #3b2a55; margin-bottom: 4px;
+                   white-space: nowrap; animation: pop 2.2s ease-in-out infinite; }
+  .b1 { left: 2%;  top: 14%; } .b2 { left: 4%;  bottom: 6%; }
+  .b3 { right: 2%; top: 18%; } .b4 { right: 4%; bottom: 8%; }
+  .b2 svg, .b4 svg { animation-delay: .35s; } .b3 svg { animation-delay: .7s; }
+  .b2 .bubble { animation-delay: .6s; } .b3 .bubble { animation-delay: 1.1s; } .b4 .bubble { animation-delay: 1.6s; }
+  .spark { position: absolute; font-size: 22px; animation: twinkle 2.4s ease-in-out infinite; }
+  @keyframes hop { 0%,100% { transform: translateY(0) scaleY(1); } 40% { transform: translateY(-14px) scaleY(1.03); } 55% { transform: translateY(0) scaleY(.94); } }
+  @keyframes pop { 0%,100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.1) rotate(3deg); } }
+  @keyframes twinkle { 0%,100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+  @media (max-width: 1250px) { .buddy { width: 90px; } .buddy .bubble { font-size: 14px; } .b1, .b3 { display: none; } }
+  @media (max-width: 700px) { .cheer .buddy { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .buddy svg, .buddy .bubble, .spark { animation: none; } }
+  .filebtn { position: relative; overflow: hidden; }
+  .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="pom">
+      <circle cx="0" cy="0" r="9" fill="#ff7bb0"/><circle cx="7" cy="-5" r="7" fill="#ffd34d"/>
+      <circle cx="-7" cy="-5" r="7" fill="#7cc8ff"/><circle cx="0" cy="-10" r="6" fill="#b48cff"/>
+    </g>
+    <g id="face">
+      <ellipse cx="-14" cy="0" rx="3.2" ry="4.2" fill="#2b2238"/><ellipse cx="14" cy="0" rx="3.2" ry="4.2" fill="#2b2238"/>
+      <circle cx="-13" cy="-1.5" r="1.1" fill="#fff"/><circle cx="15" cy="-1.5" r="1.1" fill="#fff"/>
+      <ellipse cx="-22" cy="8" rx="6" ry="3.5" fill="#ff9fbf" opacity=".8"/><ellipse cx="22" cy="8" rx="6" ry="3.5" fill="#ff9fbf" opacity=".8"/>
+      <path d="M-6 8 q6 8 12 0" fill="#ff6b8a" stroke="#2b2238" stroke-width="2" stroke-linejoin="round"/>
+    </g>
+    <!-- 우리반 캐릭터 물콩이: 물방울 속 연두 콩 -->
+    <symbol id="mulkong" viewBox="-12 0 164 175">
+      <path d="M26 112 L4 70" stroke="#9fcbe8" stroke-width="12" stroke-linecap="round"/>
+      <path d="M114 112 L136 70" stroke="#9fcbe8" stroke-width="12" stroke-linecap="round"/>
+      <use href="#pom" x="4" y="66"/><use href="#pom" x="136" y="66"/>
+      <path d="M70 6 C58 40 15 70 15 114 A55 55 0 0 0 125 114 C125 70 82 40 70 6 Z"
+            fill="#a9d4ef" stroke="#5f8fb3" stroke-width="3.5" stroke-linejoin="round"/>
+      <ellipse cx="48" cy="66" rx="7" ry="13" fill="#fff" opacity=".75" transform="rotate(30 48 66)"/>
+      <circle cx="40" cy="84" r="3.5" fill="#fff" opacity=".7"/>
+      <circle cx="70" cy="118" r="36" fill="#c8db58" stroke="#93ab36" stroke-width="3"/>
+      <circle cx="84" cy="96" r="4.5" fill="#e6f193"/>
+      <use href="#face" x="70" y="114"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="cheer" aria-hidden="true">
+  <div class="buddy b1"><span class="bubble">화이팅!</span><svg viewBox="-12 0 164 175"><use href="#mulkong"/></svg></div>
+  <div class="buddy b2"><span class="bubble">잘한다~!</span><svg viewBox="-12 0 164 175"><use href="#mulkong"/></svg></div>
+  <div class="buddy b3"><span class="bubble">최고야!</span><svg viewBox="-12 0 164 175"><use href="#mulkong"/></svg></div>
+  <div class="buddy b4"><span class="bubble">멋져요!</span><svg viewBox="-12 0 164 175"><use href="#mulkong"/></svg></div>
+  <span class="spark" style="left:12%;top:8%">💧</span>
+  <span class="spark" style="left:20%;top:55%;animation-delay:.8s">💖</span>
+  <span class="spark" style="right:13%;top:9%;animation-delay:.4s">✨</span>
+  <span class="spark" style="right:18%;top:60%;animation-delay:1.2s">⭐</span>
+  <span class="spark" style="left:8%;top:40%;animation-delay:1.6s">✨</span>
+  <span class="spark" style="right:7%;top:45%;animation-delay:2s">💖</span>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>드림하이 <span>플래시몹</span> 연습</h1>
+    <p class="sub">영상 1의 처음부터 1:32까지 재생한 뒤, 영상 2의 1:37부터 끝까지 이어서 재생합니다.</p>
+    <p class="sub"><a href="./" style="color:var(--accent)">← 연습 목록으로</a></p>
+  </header>
+
+  <div class="stage"><div id="player"></div>
+    <div id="fileWarn" hidden style="position:absolute;inset:0;place-items:center;text-align:center;padding:24px;background:#1d1a2b;color:#fff;font-size:20px;line-height:1.6">
+      <div>
+        <p style="margin:0 0 12px">이 파일을 바로 열면 유튜브 영상이 나오지 않아요 😢</p>
+        <p style="margin:0 0 16px;font-size:16px;color:#d8d0f0">같은 폴더에 있는 <b>연습화면_열기.bat</b>을 더블클릭해 주세요.</p>
+        <a href="http://localhost:8765/%EB%93%9C%EB%A6%BC%ED%95%98%EC%9D%B4_%EC%97%B0%EC%86%8D%EC%9E%AC%EC%83%9D.html" style="color:#ffd34d;font-size:16px">이미 열기 프로그램을 실행했다면 여기를 누르세요</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="panelbox">
+  <div class="now">
+    <span class="pill" id="nowLabel">준비 중</span>
+    <span class="time" id="nowTime">0:00</span>
+    <span class="gap"></span>
+    <span class="time" id="totalTime">전체 0:00 / 3:36</span>
+  </div>
+  <div class="bar" aria-hidden="true"><i class="seg1" id="b1" style="width:0"></i><i class="seg2" id="b2" style="width:0"></i></div>
+
+  <div class="segs">
+    <button class="seg" data-i="0" type="button">
+      <b>1부 · 거울모드 안무</b>
+      <small>영상 1 · 0:00 ~ 1:32 (1분 32초)</small>
+    </button>
+    <button class="seg" data-i="1" type="button">
+      <b>2부 · 신봉초 플래시몹</b>
+      <small>영상 2 · 1:37 ~ 3:41 (2분 4초)</small>
+    </button>
+  </div>
+
+  <div class="controls">
+    <button class="btn big" id="restart" type="button">▶ 처음부터 재생</button>
+    <span class="gap"></span>
+    <span class="label">속도</span>
+    <button class="btn speed" data-r="0.5" type="button">0.5배</button>
+    <button class="btn speed" data-r="0.75" type="button">0.75배</button>
+    <button class="btn speed on" data-r="1" type="button">1배</button>
+    <button class="btn" id="loop" type="button">전체 반복 끔</button>
+  </div>
+  <div class="controls">
+    <span class="label">배경</span>
+    <label class="btn filebtn" for="bgFile">🖼 내 그림으로 바꾸기<input type="file" id="bgFile" accept="image/*"></label>
+    <button class="btn" id="bgReset" type="button">물콩이 응원단으로</button>
+  </div>
+  <p class="note">인터넷이 연결되어 있어야 합니다. 화면을 크게 보려면 영상 오른쪽 아래의 전체화면 버튼을 누르세요.</p>
+  </div>
+</div>
+
+<script>
+  if (!/^https?:$/.test(location.protocol)) {
+    document.getElementById("fileWarn").hidden = false;
+    document.getElementById("fileWarn").style.display = "grid";
+  }
+  const SEGS = [
+    { id: "Y9WkhSeGK6Q", start: 0,  end: 92,  label: "1부 · 거울모드 안무" },
+    { id: "S6-0d4_8O7c", start: 97, end: 221, label: "2부 · 신봉초 플래시몹" }
+  ];
+  const TOTAL = SEGS.reduce((s, x) => s + (x.end - x.start), 0);
+  let player, cur = 0, rate = 1, loopAll = false, switching = false;
+
+  const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  const $ = id => document.getElementById(id);
+
+  function play(i) {
+    cur = i; switching = true;
+    const s = SEGS[i];
+    player.loadVideoById({ videoId: s.id, startSeconds: s.start, endSeconds: s.end });
+    document.querySelectorAll(".seg").forEach(b => b.classList.toggle("active", +b.dataset.i === i));
+    $("nowLabel").textContent = s.label;
+    setTimeout(() => { switching = false; }, 1500);
+  }
+
+  function next() {
+    if (cur < SEGS.length - 1) play(cur + 1);
+    else if (loopAll) play(0);
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player("player", {
+      videoId: SEGS[0].id,
+      playerVars: { start: SEGS[0].start, end: SEGS[0].end, rel: 0, playsinline: 1 },
+      events: {
+        onReady: () => { $("nowLabel").textContent = "▶ 재생 버튼을 누르세요"; },
+        onStateChange: e => {
+          if (e.data === YT.PlayerState.PLAYING) player.setPlaybackRate(rate);
+          if (e.data === YT.PlayerState.ENDED && !switching) next();
+        }
+      }
+    });
+  };
+
+  // 끝 지점 감시 (endSeconds가 무시될 때를 대비)
+  setInterval(() => {
+    if (!player || !player.getCurrentTime || switching) return;
+    const s = SEGS[cur];
+    const t = player.getCurrentTime();
+    if (player.getVideoData && player.getVideoData().video_id !== s.id) return;
+    if (t >= s.end - 0.2 && player.getPlayerState() === YT.PlayerState.PLAYING) { next(); return; }
+    const inSeg = Math.min(Math.max(t - s.start, 0), s.end - s.start);
+    $("nowTime").textContent = fmt(t) + " / " + fmt(s.end);
+    const done = SEGS.slice(0, cur).reduce((a, x) => a + (x.end - x.start), 0) + inSeg;
+    $("totalTime").textContent = "전체 " + fmt(done) + " / " + fmt(TOTAL);
+    const w0 = SEGS[0].end - SEGS[0].start;
+    $("b1").style.width = (Math.min(done, w0) / TOTAL * 100) + "%";
+    $("b2").style.width = (Math.max(done - w0, 0) / TOTAL * 100) + "%";
+  }, 250);
+
+  document.querySelectorAll(".seg").forEach(b => b.addEventListener("click", () => player && play(+b.dataset.i)));
+  $("restart").addEventListener("click", () => player && play(0));
+  document.querySelectorAll(".speed").forEach(b => b.addEventListener("click", () => {
+    rate = +b.dataset.r;
+    document.querySelectorAll(".speed").forEach(x => x.classList.toggle("on", x === b));
+    if (player && player.setPlaybackRate) player.setPlaybackRate(rate);
+  }));
+  // 배경 그림 바꾸기 (이 컴퓨터 브라우저에만 저장)
+  function setPhoto(url) {
+    if (url) { document.body.style.setProperty("--photo", `url("${url}")`); document.body.classList.add("photo"); }
+    else { document.body.classList.remove("photo"); }
+  }
+  try { setPhoto(localStorage.getItem("dh-bg")); } catch (e) {}
+  $("bgFile").addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { setPhoto(r.result); try { localStorage.setItem("dh-bg", r.result); } catch (err) {} };
+    r.readAsDataURL(f);
+  });
+  $("bgReset").addEventListener("click", () => { setPhoto(null); try { localStorage.removeItem("dh-bg"); } catch (e) {} });
+
+  $("loop").addEventListener("click", e => {
+    loopAll = !loopAll;
+    e.currentTarget.classList.toggle("on", loopAll);
+    e.currentTarget.textContent = loopAll ? "전체 반복 켬" : "전체 반복 끔";
+  });
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
