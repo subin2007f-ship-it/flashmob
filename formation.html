@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>드림하이 대형표</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Black+Han+Sans&display=swap">
+<style>
+  /* 위: 무대 지도(관객이 위쪽) + 시간 막대, 아래: 영상·지금 장면·내 번호, 맨 아래: 초 단위 계획표 */
+  :root {
+    --bg: #f3f1f8; --panel: #ffffff; --fg: #1d1a2b; --muted: #6a6480; --line: #dcd6ea;
+    --accent: #6b3fd6; --a: #6b3fd6; --b: #ff8a3d; --stage: #fbf7ee; --wing: #ece8f4; --book: #fffbe6;
+    --display: "Black Han Sans", "Malgun Gothic", sans-serif;
+    --body: "Gowun Dodum", "Malgun Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15121f; --panel: #211c30; --fg: #f1eefa; --muted: #a59fbd; --line: #3a3350;
+            --accent: #a17dff; --a: #a17dff; --b: #ffa25f; --stage: #2a2438; --wing: #1b1728; --book: #3a3420; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 16px; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(26px, 4vw, 38px); margin: 0; }
+  h1 span { color: var(--accent); }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0; }
+  .sub { color: var(--muted); margin: 4px 0 0; }
+  .sub a { color: var(--accent); }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 12px; min-width: 0; }
+
+  /* 무대 지도 */
+  .mapbox { padding: 10px; }
+  .mapscroll { overflow-x: auto; }
+  svg.map { width: 100%; min-width: 620px; height: auto; display: block; }
+  .map text { font-family: var(--body); }
+  .dot { transition: transform .9s cubic-bezier(.4,.1,.2,1); cursor: pointer; }
+  .dot circle.body { stroke: var(--panel); stroke-width: 3; }
+  .dot text.n { fill: #fff; font-size: 17px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .dot.wait circle.body { opacity: .45; }
+  .dot.wait text.n { opacity: .8; }
+  .dot .ring { fill: none; stroke: var(--fg); stroke-width: 4; opacity: 0; }
+  .dot.me .ring { opacity: 1; }
+  .dim .dot:not(.me) { opacity: .28; }
+  .dot .bk { fill: var(--book); stroke: var(--fg); stroke-width: 1.5; }
+  .dot .bkt { fill: var(--fg); font-size: 15px; text-anchor: middle; dominant-baseline: central; font-weight: 700; }
+  @media (prefers-reduced-motion: reduce) { .dot { transition: none; } }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; color: var(--muted); align-items: center; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 5px; }
+
+  /* 시간 막대 */
+  .timeline { display: grid; gap: 8px; }
+  .bands { display: flex; height: 26px; border-radius: 8px; overflow: hidden; font-size: 12px; }
+  .bands button { all: unset; cursor: pointer; display: grid; place-items: center; color: #fff; white-space: nowrap; overflow: hidden;
+                  text-overflow: ellipsis; padding: 0 2px; border-right: 1px solid rgba(255,255,255,.5); min-width: 0; }
+  .bands button.on { box-shadow: inset 0 -4px 0 rgba(0,0,0,.35); }
+  .bands button:focus-visible { outline: 3px solid var(--fg); outline-offset: -3px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  .ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .clock { font-family: var(--display); font-size: 28px; font-variant-numeric: tabular-nums; min-width: 4.2em; }
+  .gap { flex: 1; }
+  button.btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 8px 14px; border-radius: 10px; cursor: pointer; }
+  button.btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.big { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 17px; }
+  button:focus-visible { outline: 3px solid var(--b); outline-offset: 2px; }
+
+  .row2 { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .row2 { grid-template-columns: 1fr; } }
+  .video { position: relative; aspect-ratio: 16/9; width: 100%; max-width: 100%; background: #000; border-radius: 12px; overflow: hidden; }
+  .video > div, .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .scene-now .tag { display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: 99px; color: #fff; }
+  .scene-now h3 { font-family: var(--display); font-weight: 400; font-size: 24px; margin: 4px 0 0; }
+  .scene-now p { margin: 0; line-height: 1.6; }
+  .count { font-size: 14px; color: var(--muted); }
+
+  .nums { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 6px; }
+  @media (max-width: 520px) { .nums { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+  .nums button { font: inherit; font-weight: 700; padding: 8px 0; border-radius: 10px; border: 2px solid transparent; color: #fff; cursor: pointer; }
+  .nums button.on { border-color: var(--fg); box-shadow: 0 0 0 2px var(--panel) inset; }
+  .nums button.all { background: var(--panel); color: var(--fg); border-color: var(--line); grid-column: span 2; }
+  .cue { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .cue li { display: grid; grid-template-columns: 4.2em 1fr; gap: 8px; line-height: 1.5; }
+  .cue li b { font-variant-numeric: tabular-nums; color: var(--accent); }
+  .cue li.now { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 8px; }
+
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+  th { color: var(--muted); font-weight: 400; font-size: 13px; }
+  td.t { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; }
+  tr.on td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  tr { cursor: pointer; }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; color: #fff; white-space: nowrap; }
+  .tips { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.6; }
+  .note { color: var(--muted); font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>드림하이 <span>대형표</span> · 21명</h1>
+    <p class="sub">가운데를 맞춘 5명으로 시작 → 양쪽에서 함께 합류해 1절은 두 줄 11명, 2절은 손잡기 6명과 B팀 10명, 랩에서 스케치북·가운데 춤, 마지막 후렴은 21명 다같이. <a href="./">← 연습 목록으로</a></p>
+  </header>
+
+  <div class="box mapbox">
+    <div class="mapscroll"><svg class="map" id="map" viewBox="0 0 960 400" role="img" aria-label="무대 위 학생 위치"></svg></div>
+    <p class="note" id="swipeHint" hidden>휴대폰에서는 무대 지도를 옆으로 밀어서 보세요.</p>
+    <div class="legend">
+      <span><i style="background:var(--a)"></i>A팀 (1~11번) · 1절</span>
+      <span><i style="background:var(--b)"></i>B팀 (12~21번) · 2절</span>
+      <span>흐린 동그라미 = 무대 옆에서 대기</span>
+      <span>위쪽이 관객석. 화면의 왼쪽 = 내가 관객을 볼 때 내 왼쪽</span>
+    </div>
+  </div>
+
+  <div class="box timeline">
+    <div class="ctrl">
+      <span class="clock" id="clock">0:00</span>
+      <button class="btn big" id="play" type="button">▶ 음악과 함께 보기</button>
+      <button class="btn" id="back5" type="button">−5초</button>
+      <button class="btn" id="fwd5" type="button">+5초</button>
+      <span class="gap"></span>
+      <button class="btn speed" data-r="0.5" type="button">0.5배</button>
+      <button class="btn speed" data-r="0.75" type="button">0.75배</button>
+      <button class="btn speed on" data-r="1" type="button">1배</button>
+    </div>
+    <input type="range" id="scrub" min="0" max="216" step="0.5" value="0" aria-label="공연 시간">
+    <div class="bands" id="bands"></div>
+  </div>
+
+  <div class="row2">
+    <div class="box">
+      <div class="video"><div id="player"></div>
+        <div id="fileWarn" hidden style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:16px;background:#1d1a2b;color:#fff;line-height:1.6">
+          <p style="margin:0">파일을 바로 열면 음악이 나오지 않아요.<br>무대 지도와 시간 막대는 그대로 쓸 수 있어요.<br><span style="color:#ffd34d">음악과 함께 보려면 <b>대형표_열기.bat</b>을 더블클릭하세요.</span></p>
+        </div>
+      </div>
+      <div class="scene-now" id="sceneNow"></div>
+    </div>
+    <div class="box">
+      <h2>내 번호를 눌러 보세요</h2>
+      <div class="nums" id="nums"></div>
+      <div id="myCue"><p class="note">번호를 누르면 무대 지도에서 내 자리가 표시되고, 언제 들어가고 어디로 움직이는지 순서대로 보여 줘요.</p></div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>초 단위 계획표</h2>
+    <p class="note">시간은 드림하이 연습 화면의 전체 시간(0:00~3:36)과 같아요. 줄을 누르면 그 장면으로 이동합니다.</p>
+    <div class="tablewrap"><table id="plan"></table></div>
+  </div>
+
+  <div class="box">
+    <h2>대형 원칙</h2>
+    <ul class="tips">
+      <li><b>창문 대형:</b> 뒷줄은 앞줄 두 사람 사이 빈칸에 서요. 그래서 21명 모두 관객에게 얼굴이 보여요.</li>
+      <li><b>간격:</b> 옆 사람과 약 90cm(양팔을 벌려 손끝이 닿지 않을 만큼), 앞뒤 줄은 약 80cm예요. 무대가 더 좁으면 간격만 줄이고 모양은 그대로 둬요.</li>
+      <li><b>키 순서:</b> 마지막 대형은 앞줄 6명 → 가운데 7명(1번이 한가운데) → 뒷줄 8명(스케치북)으로, 뒤로 갈수록 넓어지는 삼각형이에요. 키가 작은 학생을 앞에 세워 주세요.</li>
+      <li><b>등장 길:</b> 들어올 때는 늘 <b>왼쪽·오른쪽에서 같은 수가 동시에</b> 들어와요. 각자 자기 줄을 따라 옆으로 걸어 들어가면 앞사람과 부딪히지 않아요. 나갈 사람은 앞쪽 길, 들어올 사람은 뒤쪽 길로 다녀요.</li>
+      <li><b>ㄷ자 응원 대형 (2:16~2:47):</b> 랩 ② 내내 양옆과 뒤쪽으로 둘러서서 <b>무대 가운데와 앞을 활짝 비워요</b>. 스케치북 친구들은 2:30에 ㄷ자 뒤쪽 양 끝으로 가요. 각자 마지막 후렴 자리에 가까운 쪽에 서 있어서, 2:47에는 양옆 친구들만 몇 걸음 걸어 들어오면 돼요. 가운데에 나온 친구에게 몸을 돌려 박수와 환호를 보내요.</li>
+      <li><b>스케치북:</b> 1절 뒷줄이던 6~11번이 한 글자씩 들어요 (왼쪽부터 10·6·7·8·9·11번, 지금은 「꿈·을·향·해·날·자」). 춤보다 들고 보여 주는 역할이라, 춤이 부담스러운 친구에게 맡겨요. 마지막 후렴도 뒷줄이에요. 글자는 반에서 정해서 알려 주시면 바꿔 드려요.</li>
+      <li><b>오프닝 1~5번:</b> 처음 5명과 마지막 앞쪽, 가운데 춤을 맡는 친구들이라 춤에 자신 있는 친구에게 맡겨요. 1번은 시작할 때와 마지막 후렴에서 늘 무대 한가운데예요.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+/* ===== 1. 대형(자리) 정의: x = 왼쪽(-)~오른쪽(+) 미터, y = 관객 쪽 0 ~ 뒤 3 ===== */
+const BOOK = ["꿈", "을", "향", "해", "날", "자"];   // 스케치북 글자 (왼쪽부터)
+const BOOKORDER = [10, 6, 7, 8, 9, 11];               // 스케치북 친구들 (왼쪽부터 글자 순서)
+const letter = id => BOOK[BOOKORDER.indexOf(id)] || "";
+const rng = (a, b) => Array.from({ length: b - a + 1 }, (_, k) => a + k);
+const FRONT5 = { 4:[-1.8,.6], 2:[-.9,.6], 1:[0,.6], 3:[.9,.6], 5:[1.8,.6] };                      // 오프닝 5명 (1번이 한가운데)
+const WAVE1  = { 6:[-1.35,1.4], 7:[-.45,1.4], 8:[.45,1.4], 9:[1.35,1.4] };                         // 첫 합류 → 뒷줄 안쪽
+const WAVE2  = { 10:[-2.25,1.4], 11:[2.25,1.4] };                                                  // 두 번째 합류 → 뒷줄 양 끝
+const A11    = { ...FRONT5, ...WAVE1, ...WAVE2 };                                                  // A팀 11명 두 줄 5-6
+const HANDS  = { 20:[-2.25,.9], 16:[-1.35,.9], 17:[-.45,.9], 18:[.45,.9], 19:[1.35,.9], 21:[2.25,.9] }; // 손잡기 6명 한 줄
+const B10    = { ...Object.fromEntries(Object.entries(HANDS).map(([k, [x]]) => [k, [x, 1.5]])),
+                 12:[-1.8,.7], 13:[-.9,.7], 14:[.9,.7], 15:[1.8,.7] };                             // B팀 10명: 앞 4 · 뒤 6
+const SOLO = (a, b) => ({ [a]: [-.6,1.3], [b]: [.6,1.3] });                                       // 가운데 춤 2명
+const TRIO = (a, b, c) => ({ [a]: [-.9,1.3], [b]: [0,1.2], [c]: [.9,1.3] });                       // 가운데 춤 3명
+const QUAD = (a, b, c, d) => ({ [a]: [-1.35,1.3], [b]: [-.45,1.2], [c]: [.45,1.2], [d]: [1.35,1.3] }); // 가운데 춤 4명
+const QUINT = (a, b, c, d, e) => ({ [a]: [-1.6,1.45], [b]: [-.8,1.25], [c]: [0,1.05], [d]: [.8,1.25], [e]: [1.6,1.45] }); // 가운데 춤 5명 (V자)
+const FINAL = { 17:[-2.25,.5], 4:[-1.35,.5], 2:[-.45,.5], 3:[.45,.5], 5:[1.35,.5], 18:[2.25,.5],
+  20:[-2.7,1.4], 16:[-1.8,1.4], 12:[-.9,1.4], 1:[0,1.4], 15:[.9,1.4], 19:[1.8,1.4], 21:[2.7,1.4],
+  10:[-3.15,2.2], 6:[-2.25,2.2], 7:[-1.35,2.2], 13:[-.45,2.2], 14:[.45,2.2], 8:[1.35,2.2], 9:[2.25,2.2], 11:[3.15,2.2] }; // 21명 6-7-8 삼각형
+/* 랩 ② ㄷ자 응원 대형: 양옆 + 뒤로 둘러서서 가운데를 활짝 비워요. 각자 마지막 후렴 자리 가까운 쪽에 서요 */
+const pick_ = (src, ids) => Object.fromEntries(ids.map(k => [k, src[k]]));
+const FRONTROW = [17, 4, 2, 3, 5, 18], BOOKS = [10, 6, 7, 8, 9, 11];
+const SIDES  = { 2:[-2.7,.3], 17:[-3.35,.62], 4:[-2.7,.94], 20:[-3.35,1.26], 16:[-2.7,1.6],
+                 3:[2.7,.3], 18:[3.35,.62], 5:[2.7,.94], 21:[3.35,1.26], 19:[2.7,1.6] };            // 양옆 세로줄 (지그재그 두 줄)
+const BACK2  = pick_(FINAL, [13, 14]);                                                             // 13·14번은 뒤쪽 가운데 (12·1·15번 바로 앞)
+const WAIT3  = { 12:[-.9,2.75], 1:[0,2.75], 15:[.9,2.75] };                                         // 맨 뒤에서 대기하는 3명
+const BOOKFRONT = { 10:[-2.25,.6], 6:[-1.35,.6], 7:[-.45,.6], 8:[.45,.6], 9:[1.35,.6], 11:[2.25,.6] }; // 스케치북 맨 앞
+const BOOKBACK  = pick_(FINAL, BOOKS);                                                             // 스케치북 뒷줄 양쪽 (마지막 자리)
+const CHEER_U = { ...SIDES, ...BACK2, ...WAIT3 };                                                  // ㄷ자 (스케치북 빼고 15명)
+const U_ALL   = { ...CHEER_U, ...BOOKBACK };                                                       // ㄷ자 + 스케치북은 뒷줄 양쪽
+const SIDE = { 1:"L", 2:"L", 4:"L", 3:"R", 5:"R", 6:"L", 7:"L", 10:"L", 8:"R", 9:"R", 11:"R",
+               12:"L", 13:"L", 14:"R", 15:"R", 16:"L", 17:"L", 20:"L", 18:"R", 19:"R", 21:"R" };  // 대기하는 쪽
+
+/* ===== 2. 장면(초 단위). 시간은 연습 화면 전체 시간 기준 ===== */
+const SCENES = [
+  { t:0,   e:7,   sec:"인트로", c:"#8e6be0", title:"오프닝 5명", pos:{...FRONT5},
+    act:"춤에 자신 있는 1~5번이 앞줄 한 줄로 시작해요. 1번이 무대 한가운데! 나머지 16명은 무대 양옆에서 대기해요." },
+  { t:7,   e:10,  sec:"1절", c:"#6b3fd6", title:"1절 시작 · 5명", pos:{...FRONT5},
+    act:"5명이 1절 안무를 시작해요. 무대가 비어 보일수록 동작을 크게!" },
+  { t:10,  e:15,  sec:"1절", c:"#6b3fd6", title:"첫 합류 · 양쪽에서 4명", pos:{...FRONT5, ...WAVE1},
+    act:"10초에 6·7번(왼쪽)과 8·9번(오른쪽)이 동시에 들어와 뒷줄 안쪽, 앞사람 사이사이에 서요. 들어오면서 바로 안무를 따라 해요." },
+  { t:15,  e:27,  sec:"1절", c:"#6b3fd6", title:"두 번째 합류 · 양쪽에서 2명", pos:{...A11},
+    act:"15초에 10번(왼쪽)과 11번(오른쪽)이 동시에 들어와 뒷줄 양 끝에 서요. 이제 A팀 11명, 앞 5·뒤 6 두 줄 창문 대형." },
+  { t:27,  e:48,  sec:"1절 빌드업", c:"#5a2fc2", title:"A팀 11명 · 두 줄", pos:{...A11},
+    act:"11명이 두 줄 그대로 1절 뒷부분을 춰요. 자리를 바꾸지 않고 안무에 집중!" },
+  { t:48,  e:78,  sec:"후렴 1", c:"#4a22a8", title:"1절 후렴 · A팀 11명", pos:{...A11},
+    act:"A팀 11명이 첫 후렴을 크게 춰요. B팀은 옆에서 대기하며 박수." },
+  { t:78,  e:92,  sec:"랩 ①", c:"#9a8fb0", title:"손잡기 6명 (1부 끝)", pos:{...HANDS},
+    roles:[[[16,17,18,19,20,21], "손잡고 한 줄로 춤"]],
+    act:"78초에 A팀은 앞쪽 길로 옆으로 빠지고, 16~21번 6명이 뒤쪽 길로 들어와 한 줄로 서로 손을 잡고 춰요." },
+  { t:92,  e:108, sec:"2절", c:"#e8732a", title:"2절 · B팀 10명", pos:{...B10},
+    act:"92초부터 2부 영상. 12·13번(왼쪽)과 14·15번(오른쪽)이 동시에 들어와 앞줄에 서고, 손잡기 6명은 한 걸음 뒤로. B팀 10명이 앞 4·뒤 6 두 줄로 2절을 춰요." },
+  { t:108, e:136, sec:"후렴 2", c:"#d45f17", title:"2절 후렴 · B팀 10명", pos:{...B10},
+    act:"B팀 10명이 두 번째 후렴. 6~11번은 옆에서 스케치북을 들고 달려 나갈 준비!" },
+  { t:136, e:150, sec:"랩 ②", c:"#c99a12", title:"스케치북 달려오기 · 나머지는 박수", pos:{...BOOKFRONT, ...CHEER_U}, book:true,
+    roles:[[BOOKORDER, "스케치북 들고 맨 앞으로 달려와 메시지 보여 주기"], [Object.keys(SIDES).map(Number), "양옆에 서서 박수"],
+           [[13, 14, 12, 1, 15], "뒤쪽 가운데에 모여 서서 박수"]],
+    act:"136초에 6~11번이 스케치북을 들고 양옆에서 맨 앞으로 달려와요. 나머지 15명은 양옆과 뒤쪽으로 가서 ㄷ자로 둘러서서 박수! 138초부터 왼쪽부터 한 장씩 펼쳐요." },
+  { t:150, e:156, sec:"랩 ②", c:"#b88a0f", title:"가운데 춤 ① · 4명 (2·17·18·3번)", pos:{...U_ALL, ...QUAD(2, 17, 18, 3)}, book:true, solo:[2, 17, 18, 3],
+    roles:[[BOOKORDER, "스케치북 들고 ㄷ자 뒤쪽 양 끝으로 이동"], [[2, 3, 17, 18], "양옆에서 나와 가운데 춤 ① (4명)"]],
+    act:"150초에 스케치북 친구들이 ㄷ자 뒤쪽 양 끝으로 비켜서서 가운데가 활짝 열려요. 첫 번째로 2·17·18·3번 4명이 양옆에서 가운데로 나와 한 줄로 춤! ㄷ자 친구들은 가운데를 보며 박수·환호로 응원해요." },
+  { t:156, e:161, sec:"랩 ②", c:"#a67c0d", title:"가운데 춤 ② · 2명 (16·19번)", pos:{...U_ALL, ...SOLO(16, 19)}, book:true, solo:[16, 19],
+    roles:[[[2, 3, 17, 18], "제자리로 돌아가기"], [[16, 19], "가운데 나가서 춤 ② (2명)"]],
+    act:"156초에 4명은 제자리로 돌아가고, 두 번째로 16·19번 2명이 바통 터치!" },
+  { t:161, e:167, sec:"랩 ②", c:"#94700b", title:"가운데 춤 ③ · 5명 (12·13·1·14·15번)", pos:{...U_ALL, ...QUINT(12, 13, 1, 14, 15)}, book:true, solo:[12, 13, 1, 14, 15],
+    roles:[[[16, 19], "제자리로 돌아가기"], [[12, 13, 14, 15], "뒤쪽 가운데에서 나와 가운데 춤 ③ (5명)"], [[1], "맨 뒤에서 나와 가운데 춤 ③ (5명, 한가운데)"]],
+    act:"161초에 마지막으로 뒤쪽 가운데에 모여 있던 12·13·1·14·15번 5명이 다 같이 앞으로 나와 V자로 서서 춤! 1번이 맨 앞 한가운데예요. 모두 크게 응원해요." },
+  { t:167, e:175, sec:"전환", c:"#9e7d1a", title:"마지막 대형으로", pos:{...FINAL},
+    roles:[[BOOKORDER, "그 자리에서 스케치북을 발 앞에 내려놓기"], [[13, 14], "한 걸음 뒤로 → 뒷줄 가운데 자리"],
+           [FRONTROW, "양옆에서 앞줄 자리로 걸어오기"], [[20, 16, 21, 19], "양옆에서 가운뎃줄 자리로 들어오기"], [[12, 15], "춤 끝난 자리에서 반 걸음 안쪽 → 가운뎃줄"], [[1], "반 걸음 뒤로 → 가운뎃줄 한가운데"]],
+    act:"167초에 양옆 친구들이 가운데 쪽으로 걸어 들어와 앞줄과 가운뎃줄을 채워요. 가운데에서 춤춘 5명 중 12·1·15번은 그 자리 근처 가운뎃줄로, 13·14번은 한 걸음 뒤로 뒷줄 가운데에 서요 (8초면 충분해요). 스케치북 친구들은 이미 제자리예요." },
+  { t:175, e:208, sec:"마지막 후렴", c:"#d1356b", title:"21명 다같이", pos:{...FINAL},
+    act:"175초부터 21명이 다 같이 마지막 후렴. 가장 크고 신나게!" },
+  { t:208, e:216, sec:"엔딩", c:"#a8174f", title:"엔딩 포즈", pos:{...FINAL}, book:true,
+    roles:[[BOOKORDER, "스케치북을 머리 위로 높이 들기"]],
+    act:"208초에 앞줄은 무릎 꿇고 두 손 위로, 가운뎃줄은 손하트, 뒷줄 스케치북 친구들은 스케치북을 머리 위로 높이! 216초까지 멈춰요." },
+];
+const END = 216;
+
+/* ===== 3. 무대 지도 그리기 (관객이 위) ===== */
+const svg = document.getElementById("map");
+const NS = "http://www.w3.org/2000/svg";
+const X = x => 480 + x * 108;          // 미터 → 화면
+const Y = y => 92 + y * 100;
+const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); (parent || svg).appendChild(n); return n; };
+const color = id => id <= 11 ? "var(--a)" : "var(--b)";
+
+function drawStage() {
+  el("rect", { x: 0, y: 0, width: 960, height: 400, fill: "var(--wing)", rx: 14 });
+  el("rect", { x: X(-3.65), y: 46, width: X(3.65) - X(-3.65), height: 344, fill: "var(--stage)", rx: 10, stroke: "var(--line)", "stroke-width": 2 });
+  const aud = el("text", { x: 480, y: 30, "text-anchor": "middle", fill: "var(--muted)", "font-size": 18 }); aud.textContent = "▲ 관객석 (앞)";
+  const l = el("text", { x: 44, y: 30, "text-anchor": "middle", fill: "var(--muted)", "font-size": 15 }); l.textContent = "왼쪽 대기";
+  const r = el("text", { x: 916, y: 30, "text-anchor": "middle", fill: "var(--muted)", "font-size": 15 }); r.textContent = "오른쪽 대기";
+  for (let i = -3; i <= 3; i++) el("line", { x1: X(i), x2: X(i), y1: 52, y2: 384, stroke: "var(--line)", "stroke-dasharray": "4 8" });
+  el("line", { x1: X(0), x2: X(0), y1: 52, y2: 384, stroke: "var(--muted)", "stroke-dasharray": "2 6", opacity: .6 });
+}
+drawStage();
+
+const dots = {};
+for (let id = 1; id <= 21; id++) {
+  const g = el("g", { class: "dot", "data-id": id });
+  const bk = el("g", { class: "bkwrap" }, g);
+  el("rect", { class: "bk", x: -19, y: -52, width: 38, height: 28, rx: 4 }, bk);
+  const bt = el("text", { class: "bkt", x: 0, y: -38 }, bk); bt.textContent = letter(id);
+  el("circle", { class: "ring", r: 25 }, g);
+  el("circle", { class: "body", r: 20, fill: color(id) }, g);
+  const t = el("text", { class: "n" }, g); t.textContent = id;
+  g.addEventListener("click", () => pick(id));
+  dots[id] = { g, bk };
+}
+
+function wingSlots(scene) {
+  const slots = {}, cnt = { L: 0, R: 0 };
+  for (let id = 1; id <= 21; id++) {
+    if (scene.pos[id]) continue;
+    const s = SIDE[id], i = cnt[s]++;
+    const col = i % 2, row = Math.floor(i / 2);
+    const x = s === "L" ? 26 + col * 40 : 934 - col * 40;
+    slots[id] = [x, 80 + row * 52];
+  }
+  return slots;
+}
+
+/* ===== 4. 시간 → 장면 ===== */
+let clock = 0, curScene = -1, me = 0;
+const sceneAt = t => { for (let i = SCENES.length - 1; i >= 0; i--) if (t >= SCENES[i].t) return i; return 0; };
+const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+function showScene(i) {
+  const sc = SCENES[i], wing = wingSlots(sc);
+  for (let id = 1; id <= 21; id++) {
+    const d = dots[id], p = sc.pos[id];
+    const [x, y] = p ? [X(p[0]), Y(p[1])] : wing[id];
+    d.g.setAttribute("transform", `translate(${x} ${y})`);
+    d.g.style.transform = `translate(${x}px, ${y}px)`;
+    d.g.classList.toggle("wait", !p);
+    d.bk.style.display = sc.book && p && BOOKORDER.includes(id) ? "" : "none";
+  }
+  const on = Object.keys(sc.pos).length;
+  $("sceneNow").innerHTML = `<span class="tag" style="background:${sc.c}">${sc.sec} · ${fmt(sc.t)}~${fmt(sc.e)}</span>
+    <h3>${sc.title}</h3><p class="count">무대 위 ${on}명 · 대기 ${21 - on}명</p><p>${sc.act}</p>`;
+  document.querySelectorAll("#bands button").forEach((b, k) => b.classList.toggle("on", k === i));
+  document.querySelectorAll("#plan tbody tr").forEach((r, k) => r.classList.toggle("on", k === i));
+  document.querySelectorAll("#myCue li").forEach(li => li.classList.toggle("now", +li.dataset.s === i));
+}
+
+function setClock(t) {
+  clock = Math.max(0, Math.min(END, t));
+  $("clock").textContent = fmt(clock);
+  if (document.activeElement !== $("scrub")) $("scrub").value = clock;
+  const i = sceneAt(clock);
+  if (i !== curScene) { curScene = i; showScene(i); }
+}
+const $ = id => document.getElementById(id);
+
+/* 시간 막대와 계획표 */
+$("bands").innerHTML = SCENES.map((s, i) =>
+  `<button type="button" data-i="${i}" style="flex:${s.e - s.t};background:${s.c}" title="${fmt(s.t)} ${s.title}">${s.e - s.t >= 14 ? s.sec : ""}</button>`).join("");
+$("bands").addEventListener("click", e => { const b = e.target.closest("button"); if (b) seek(SCENES[+b.dataset.i].t); });
+
+function onStageCount(sc) { return Object.keys(sc.pos).length; }
+$("plan").innerHTML = `<thead><tr><th>시간</th><th>구간</th><th>무대 위</th><th>할 일</th></tr></thead><tbody>` +
+  SCENES.map(s => `<tr><td class="t">${fmt(s.t)}~${fmt(s.e)}<br><span class="note">${s.t}~${s.e}초</span></td>
+    <td><span class="pill" style="background:${s.c}">${s.sec}</span><br><b>${s.title}</b></td>
+    <td>${onStageCount(s)}명</td><td>${s.act}</td></tr>`).join("") + `</tbody>`;
+$("plan").addEventListener("click", e => { const r = e.target.closest("tbody tr"); if (r) seek(SCENES[[...r.parentNode.children].indexOf(r)].t); });
+
+/* ===== 5. 내 번호 ===== */
+$("nums").innerHTML = Array.from({ length: 21 }, (_, k) => `<button type="button" data-id="${k + 1}" style="background:${color(k + 1)}">${k + 1}</button>`).join("")
+  + `<button type="button" class="all" data-id="0">전체 보기</button>`;
+$("nums").addEventListener("click", e => { const b = e.target.closest("button"); if (b) pick(+b.dataset.id); });
+
+function placeText(sc, id) {
+  const p = sc.pos[id];
+  if (!p) return null;
+  const colMates = Object.values(sc.pos).filter(v => v[0] === p[0]).map(v => v[1]).sort((a, b) => a - b);
+  if (Math.abs(p[0]) >= 2.3 && colMates.length >= 3)   // 양옆 세로줄
+    return `${p[0] < 0 ? "왼쪽" : "오른쪽"} 세로줄 앞에서 ${colMates.indexOf(p[1]) + 1}번째`;
+  if ((sc.solo || []).includes(id)) return "무대 한가운데";
+  const soloPos = (sc.solo || []).map(k => sc.pos[k]);
+  const isCol = v => Math.abs(v[0]) >= 2.3 && Object.values(sc.pos).filter(w => w[0] === v[0]).length >= 3;
+  const rest = Object.values(sc.pos).filter(v => !isCol(v) && !soloPos.includes(v));
+  const ys = [...new Set(rest.map(v => v[1]))].sort((a, b) => a - b);
+  const r = ys.indexOf(p[1]);
+  const rowName = ys.length === 1 ? "한 줄" : r === 0 ? "앞줄" : r === ys.length - 1 ? "뒷줄" : ys.length > 3 ? `앞에서 ${r + 1}번째 줄` : "가운뎃줄";
+  const same = rest.filter(v => v[1] === p[1]).map(v => v[0]).sort((a, b) => a - b);
+  const col = same.indexOf(p[0]) + 1;
+  const center = Math.abs(p[0]) < .01 ? " (가운데)" : "";
+  return `${rowName} 왼쪽에서 ${col}번째${center}`;
+}
+function cueFor(id) {
+  const out = [];
+  let prev = null;
+  SCENES.forEach((sc, i) => {
+    const now = placeText(sc, id), side = SIDE[id] === "L" ? "왼쪽" : "오른쪽";
+    const posNow = sc.pos[id] ? sc.pos[id].join() : null;
+    let msg = null;
+    if (i === 0) msg = now ? `처음부터 무대 위 · ${now}` : `${side} 옆에서 대기`;
+    else if (!prev && posNow) msg = `${side}에서 등장 → ${now}`;
+    else if (prev && !posNow) msg = `${side} 옆으로 퇴장, 대기`;
+    else if (prev && posNow && prev !== posNow) msg = `자리 이동 → ${now}`;
+    const role = (sc.roles || []).find(([ids]) => ids.includes(id));
+    if (role) msg = (msg ? msg + " · " : "") + role[1] + (sc.book && BOOKORDER.includes(id) && i === 9 ? ` (「${letter(id)}」)` : "");
+    if (msg) out.push(`<li data-s="${i}"><b>${fmt(sc.t)}</b><span>${msg}</span></li>`);
+    prev = posNow;
+  });
+  return out.join("");
+}
+function pick(id) {
+  me = id;
+  svg.classList.toggle("dim", !!id);
+  for (let k = 1; k <= 21; k++) dots[k].g.classList.toggle("me", k === id);
+  document.querySelectorAll("#nums button").forEach(b => b.classList.toggle("on", +b.dataset.id === id));
+  $("myCue").innerHTML = id
+    ? `<p><b>${id}번</b> · ${id <= 11 ? "A팀 (1절)" : "B팀 (2절)"}${id <= 5 ? " · 오프닝" : ""}${id === 1 ? " · 센터" : ""}${BOOKORDER.includes(id) ? " · 스케치북 「" + letter(id) + "」" : ""}${id >= 16 ? " · 손잡기 6명" : ""}${id >= 12 && id <= 15 ? " · 2절 앞줄" : ""}${[16, 19, 2, 17, 18, 3, 12, 13, 1, 14, 15].includes(id) ? " · 가운데 춤" : ""}</p><ul class="cue">${cueFor(id)}</ul>`
+    : `<p class="note">번호를 누르면 무대 지도에서 내 자리가 표시되고, 언제 들어가고 어디로 움직이는지 순서대로 보여 줘요.</p>`;
+  document.querySelectorAll("#myCue li").forEach(li => li.classList.toggle("now", +li.dataset.s === curScene));
+  try { localStorage.setItem("dh-me", id); } catch (e) {}
+}
+
+/* ===== 6. 영상과 맞추기 (드림하이 연습 화면과 같은 두 구간) ===== */
+const VSEG = [ { id: "Y9WkhSeGK6Q", start: 0, end: 92, g0: 0 }, { id: "S6-0d4_8O7c", start: 97, end: 221, g0: 92 } ];
+let player, ready = false, vi = 0, rate = 1, switching = false;
+window.onYouTubeIframeAPIReady = () => {
+  player = new YT.Player("player", {
+    videoId: VSEG[0].id, playerVars: { rel: 0, playsinline: 1, start: 0 },
+    events: {
+      onReady: () => { ready = true; },
+      onStateChange: e => {
+        if (e.data === YT.PlayerState.PLAYING) { player.setPlaybackRate(rate); switching = false; $("play").textContent = "❚❚ 멈춤"; }
+        else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) { if (!switching) $("play").textContent = "▶ 음악과 함께 보기"; }
+      }
+    }
+  });
+};
+function seek(g, autoplay) {
+  setClock(g);
+  if (!ready) return;
+  const k = g < VSEG[1].g0 ? 0 : 1, s = VSEG[k], local = s.start + (g - s.g0);
+  const playing = autoplay || player.getPlayerState() === YT.PlayerState.PLAYING;
+  if (k === vi && player.getVideoData().video_id === s.id) { player.seekTo(local, true); if (playing) player.playVideo(); }
+  else { vi = k; switching = true; playing ? player.loadVideoById({ videoId: s.id, startSeconds: local }) : player.cueVideoById({ videoId: s.id, startSeconds: local }); }
+}
+setInterval(() => {
+  if (!ready || switching || player.getPlayerState() !== YT.PlayerState.PLAYING) return;
+  const s = VSEG[vi], t = player.getCurrentTime();
+  if (player.getVideoData().video_id !== s.id) return;
+  if (t >= s.end - 0.15) {
+    if (vi === 0) { vi = 1; switching = true; player.loadVideoById({ videoId: VSEG[1].id, startSeconds: VSEG[1].start }); setClock(VSEG[1].g0); }
+    else { player.pauseVideo(); setClock(END); }
+    return;
+  }
+  setClock(s.g0 + (t - s.start));
+}, 150);
+
+$("play").addEventListener("click", () => {
+  if (!ready) return;
+  if (player.getPlayerState() === YT.PlayerState.PLAYING) { player.pauseVideo(); return; }
+  seek(clock >= END ? 0 : clock, true);
+});
+$("back5").addEventListener("click", () => seek(clock - 5));
+$("fwd5").addEventListener("click", () => seek(clock + 5));
+$("scrub").addEventListener("input", e => setClock(+e.target.value));
+$("scrub").addEventListener("change", e => seek(+e.target.value));
+document.querySelectorAll(".speed").forEach(b => b.addEventListener("click", () => {
+  rate = +b.dataset.r;
+  document.querySelectorAll(".speed").forEach(x => x.classList.toggle("on", x === b));
+  if (ready) player.setPlaybackRate(rate);
+}));
+
+setClock(0);
+if (!/^https?:$/.test(location.protocol)) $("fileWarn").hidden = false;
+$("swipeHint").hidden = innerWidth >= 660;
+try { const saved = +localStorage.getItem("dh-me"); if (saved >= 1 && saved <= 21) pick(saved); } catch (e) {}
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
