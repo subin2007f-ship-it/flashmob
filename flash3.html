@@ -162,7 +162,7 @@
       <span class="pill" id="nowLabel">준비 중</span>
       <span class="time" id="nowTime">0:00</span>
       <span class="gap"></span>
-      <span class="time" id="totalTime">전체 0:00 / 2:48</span>
+      <span class="time" id="totalTime">전체 0:00 / 2:05</span>
     </div>
     <div class="bar" id="bar" aria-hidden="true"></div>
 
@@ -207,12 +207,12 @@
   const DEFAULTS = [
     { id: "Jftx_KJYeRQ", start: 45, end: 85, title: "하얀그리움" },
     { id: "uW_xo0R1Usw", start: 45, end: 95, title: "꿈빛파티시엘" },
-    { id: "j2ICvZ63kVQ", start: 0,  end: 78, title: "캐치캐치" }
+    { id: "MegKE-BW2QQ", start: 0,  end: 35, title: "캐치캐치" }
   ];
   const COLORS = ["var(--c1)", "var(--c2)", "var(--c3)"];
   let SEGS = DEFAULTS.map(s => ({ ...s }));
   try {
-    const saved = JSON.parse(localStorage.getItem("flash3-times-v4") || "null");
+    const saved = JSON.parse(localStorage.getItem("flash3-times-v5") || "null");
     if (Array.isArray(saved)) saved.forEach((t, i) => { if (SEGS[i] && t) { SEGS[i].start = t.start; SEGS[i].end = t.end; } });
   } catch (e) {}
 
@@ -251,7 +251,7 @@
     const s = SEGS[i], d = +b.dataset.d;
     if (b.dataset.k === "start") s.start = Math.max(0, Math.min(s.start + d, s.end - 3));
     else s.end = Math.max(s.start + 3, s.end + d);
-    try { localStorage.setItem("flash3-times-v4", JSON.stringify(SEGS.map(x => ({ start: x.start, end: x.end })))); } catch (err) {}
+    try { localStorage.setItem("flash3-times-v5", JSON.stringify(SEGS.map(x => ({ start: x.start, end: x.end })))); } catch (err) {}
     renderCards();
   });
 
